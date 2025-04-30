@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>定时任务管理后台</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: '微软雅黑', Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+    .container { max-width: 400px; margin: 60px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 32px 24px; }
+    h2 { text-align: center; color: #333; margin-bottom: 24px; }
+    .current { text-align: center; font-size: 18px; margin-bottom: 24px; color: #007bff; }
+    .btn-group { display: flex; justify-content: space-between; margin-bottom: 20px; }
+    button { flex: 1; margin: 0 6px; padding: 12px 0; font-size: 16px; border: none; border-radius: 6px; background: #e9ecef; color: #333; cursor: pointer; transition: background 0.2s; }
+    button.active, button:focus { background: #007bff; color: #fff; }
+    button:hover { background: #339dff; color: #fff; }
+    .msg { text-align: center; color: #28a745; min-height: 24px; font-size: 15px; }
+    @media (max-width: 500px) { .container { padding: 16px 4px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>定时任务管理后台</h2>
+    <div class="current" id="currentFreq">正在加载当前频率...</div>
+    <div class="btn-group">
+      <button id="btn2h">每2小时</button>
+      <button id="btn4h">每4小时</button>
+      <button id="btn1d">每天0点</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+  <script>
+    // 常用cron表达式与中文频率对照表
+    const cronMap = {
+      '0 */2 * * *': '每2小时',
+      '0 */4 * * *': '每4小时',
+      '0 0 * * *': '每天0点'
+    };
+    // 反查：中文频率->cron
+    const freqToCron = {
+      '2h': '0 */2 * * *',
+      '4h': '0 */4 * * *',
+      '1d': '0 0 * * *'
+    };
+    // 当前cron表达式
+    let currentCron = '';
+
+    // 获取当前定时任务频率
+    async function fetchCurrentFreq() {
+      try {
+        const res = await fetch('/api/schedule');
+        const data = await res.json();
+        if (data && data.cron) {
+          currentCron = data.cron;
+          // 显示中文频率
+          document.getElementById('currentFreq').textContent = '当前频率：' + (cronMap[data.cron] || data.cron);
+          // 高亮当前按钮
+          highlightBtn(data.cron);
+        } else {
+          document.getElementById('currentFreq').textContent = '获取失败';
+        }
+      } catch (e) {
+        document.getElementById('currentFreq').textContent = '获取失败';
+      }
+    }
+
+    // 切换定时任务频率
+    async function setFreq(cron) {
+      if (cron === currentCron) return;
+      setMsg('正在切换...');
+      try {
+        const res = await fetch('/api/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cron })
+        });
+        const data = await res.json();
+        if (data && data.code === 0) {
+          setMsg('切换成功！');
+          await fetchCurrentFreq();
+        } else {
+          setMsg('切换失败：' + (data.msg || '未知错误'));
+        }
+      } catch (e) {
+        setMsg('切换失败：网络错误');
+      }
+    }
+
+    // 设置提示信息
+    function setMsg(msg) {
+      document.getElementById('msg').textContent = msg;
+      setTimeout(() => { document.getElementById('msg').textContent = ''; }, 2000);
+    }
+
+    // 高亮当前频率按钮
+    function highlightBtn(cron) {
+      document.getElementById('btn2h').classList.remove('active');
+      document.getElementById('btn4h').classList.remove('active');
+      document.getElementById('btn1d').classList.remove('active');
+      if (cron === freqToCron['2h']) document.getElementById('btn2h').classList.add('active');
+      if (cron === freqToCron['4h']) document.getElementById('btn4h').classList.add('active');
+      if (cron === freqToCron['1d']) document.getElementById('btn1d').classList.add('active');
+    }
+
+    // 绑定按钮事件
+    document.getElementById('btn2h').onclick = () => setFreq(freqToCron['2h']);
+    document.getElementById('btn4h').onclick = () => setFreq(freqToCron['4h']);
+    document.getElementById('btn1d').onclick = () => setFreq(freqToCron['1d']);
+
+    // 页面加载时获取当前频率
+    fetchCurrentFreq();
+  </script>
+</body>
+</html> 

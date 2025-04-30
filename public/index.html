@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>全网热搜榜</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif; background: #f7f7fa; margin: 0; padding: 0; }
+    .main-layout { display: flex; min-height: 100vh; }
+    .sidebar { width: 180px; background: #fff; border-right: 1px solid #e6e6e6; padding: 24px 0 0 0; display: flex; flex-direction: column; align-items: center; }
+    .sidebar .logo { font-size: 1.5em; font-weight: bold; color: #ff6600; margin-bottom: 32px; letter-spacing: 2px; }
+    .platform-list { width: 100%; }
+    .platform-item { display: flex; align-items: center; padding: 12px 24px; cursor: pointer; border-radius: 8px 0 0 8px; margin-bottom: 6px; transition: background 0.2s; font-size: 1.08em; color: #333; }
+    .platform-item.active, .platform-item:hover { background: #f3f7ff; color: #1976d2; font-weight: bold; }
+    .platform-item img { width: 22px; height: 22px; margin-right: 10px; }
+    .content { flex: 1; display: flex; flex-direction: column; }
+    .topbar { background: #fff; padding: 18px 32px 10px 32px; display: flex; align-items: center; border-bottom: 1px solid #e6e6e6; }
+    .topbar .search { flex: 1; display: flex; align-items: center; }
+    .topbar input[type="text"] { width: 260px; padding: 7px 14px; border-radius: 6px; border: 1px solid #e0e0e0; font-size: 15px; margin-right: 18px; }
+    .topbar input[type="date"] { padding: 7px 14px; border-radius: 6px; border: 1px solid #e0e0e0; font-size: 15px; margin-right: 18px; }
+    .topbar .add-btn { background: linear-gradient(90deg,#ff6600,#ffb347); color: #fff; border: none; border-radius: 6px; padding: 7px 18px; font-size: 15px; cursor: pointer; margin-left: 18px; }
+    .main-content { display: flex; flex: 1; }
+    .center { flex: 2; padding: 32px 24px 24px 24px; }
+    .board-header { display: flex; align-items: center; margin-bottom: 18px; }
+    .board-title { font-size: 1.3em; font-weight: bold; color: #222; margin-right: 18px; }
+    .board-date { color: #888; font-size: 14px; }
+    .hot-list { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px #0001; padding: 18px 0; }
+    .hot-item { display: flex; align-items: center; padding: 12px 24px; border-bottom: 1px solid #f2f2f2; transition: background 0.2s; }
+    .hot-item:last-child { border-bottom: none; }
+    .hot-rank { width: 32px; text-align: center; font-weight: bold; color: #ff6600; font-size: 1.1em; }
+    .hot-title { flex: 1; font-size: 1.08em; color: #222; text-decoration: none; font-weight: 500; }
+    .hot-title:hover { color: #1976d2; text-decoration: underline; }
+    .hot-meta { color: #888; font-size: 13px; margin-left: 12px; }
+    .hot-jump { color: #fff; background: linear-gradient(90deg,#ff6600,#ffb347); border: none; border-radius: 6px; padding: 4px 14px; font-size: 13px; cursor: pointer; text-decoration: none; margin-left: 18px; }
+    .hot-jump:hover { background: linear-gradient(90deg,#ffb347,#ff6600); }
+    .no-data { text-align: center; color: #aaa; font-size: 1.1em; margin: 40px 0 20px 0; }
+    .rightbar { width: 320px; background: #fff; border-left: 1px solid #e6e6e6; padding: 32px 18px; }
+    .wordcloud-placeholder { width: 100%; height: 260px; background: #f7f7fa; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 1.2em; }
+    @media (max-width: 1100px) {
+      .rightbar { display: none; }
+    }
+    @media (max-width: 800px) {
+      .sidebar { display: none; }
+      .main-content { flex-direction: column; }
+      .center { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="main-layout">
+    <div class="sidebar">
+      <div class="logo">热搜聚合</div>
+      <div class="platform-list" id="platformList">
+        <!-- 平台切换区 -->
+      </div>
+    </div>
+    <div class="content">
+      <div class="topbar">
+        <div class="search">
+          <input type="text" id="searchInput" placeholder="输入关键词查询热搜历史...">
+          <input type="date" id="dateInput">
+        </div>
+        <button class="add-btn">添加监控</button>
+      </div>
+      <div class="main-content">
+        <div class="center">
+          <div class="board-header">
+            <span class="board-title" id="boardTitle">热搜榜</span>
+            <span class="board-date" id="boardDate"></span>
+          </div>
+          <div class="hot-list" id="hotList">
+            <!-- 榜单渲染区 -->
+          </div>
+          <div class="no-data" id="noData" style="display:none;">当前条件下暂无热搜数据，请稍后再试或切换平台。</div>
+        </div>
+        <div class="rightbar">
+          <div class="wordcloud-placeholder">词云/热点词汇（可扩展）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // 平台配置
+    const platforms = [
+      { key: 'bilibili', name: 'Bilibili', icon: 'https://www.bilibili.com/favicon.ico' },
+      { key: 'weibo', name: '微博', icon: 'https://weibo.com/favicon.ico' },
+      { key: 'zhihu', name: '知乎', icon: 'https://static.zhihu.com/heifetz/favicon.ico' }
+      // 可扩展更多平台
+    ];
+    let currentPlatform = platforms[0].key;
+    let currentDate = '';
+    let hotList = [];
+
+    // 渲染平台切换
+    function renderPlatformList() {
+      const box = document.getElementById('platformList');
+      box.innerHTML = '';
+      platforms.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'platform-item' + (p.key === currentPlatform ? ' active' : '');
+        div.innerHTML = `<img src="${p.icon}"> ${p.name}`;
+        div.onclick = () => {
+          currentPlatform = p.key;
+          loadHotList();
+          renderPlatformList();
+        };
+        box.appendChild(div);
+      });
+    }
+
+    // 日期选择
+    document.getElementById('dateInput').addEventListener('change', function() {
+      currentDate = this.value;
+      loadHotList();
+    });
+
+    // 搜索（仅前端过滤）
+    document.getElementById('searchInput').addEventListener('input', function() {
+      renderHotList();
+    });
+
+    // 加载热搜榜单
+    async function loadHotList() {
+      let url = `http://localhost:3000/api/hotsearch?platform=${currentPlatform}&limit=50`;
+      if (currentDate) url += `&date=${currentDate}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      hotList = data.data || [];
+      renderHotList();
+      document.getElementById('boardTitle').innerText = platforms.find(p=>p.key===currentPlatform).name + '热搜榜';
+      document.getElementById('boardDate').innerText = currentDate ? `日期：${currentDate}` : '';
+      document.getElementById('noData').style.display = hotList.length === 0 ? 'block' : 'none';
+    }
+
+    // 渲染榜单
+    function renderHotList() {
+      const box = document.getElementById('hotList');
+      box.innerHTML = '';
+      const keyword = document.getElementById('searchInput').value.trim();
+      let list = hotList;
+      if (keyword) {
+        list = list.filter(item => item.title && item.title.includes(keyword));
+      }
+      list.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'hot-item';
+        div.innerHTML = `
+          <span class="hot-rank">${item.rank || (idx+1)}</span>
+          <a class="hot-title" href="${item.url}" target="_blank">${item.title}</a>
+          <span class="hot-meta">${item.hotValue ? '热度：'+item.hotValue : ''}</span>
+          <span class="hot-meta">${item.tname || ''}</span>
+          <a class="hot-jump" href="${item.url}" target="_blank">跳转</a>
+        `;
+        box.appendChild(div);
+      });
+    }
+
+    // 初始化
+    renderPlatformList();
+    loadHotList();
+  </script>
+</body>
+</html> 
